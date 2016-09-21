@@ -9,7 +9,7 @@ MISSING_TOOLCHAIN=0
 MISSING_DEFS=0
 MISSING_NACL=0
 
-TOOLS="netsniff-ng trafgen astraceroute flowtop ifpps bpfc curvetun mausezahn"
+TOOLS="netsniff-ng"
 TOOLS_NOBUILD=""
 
 HAVE_LIBNL=0
@@ -18,6 +18,8 @@ HAVE_HWTSTAMP=0
 HAVE_LIBGEOIP=0
 HAVE_LIBZ=0
 HAVE_TPACKET3=0
+HAVE_GEOIP=0
+HAVE_LIBZ=0
 
 DISABLE_LIBNL=0
 DISABLE_GEOIP=0
@@ -156,76 +158,6 @@ check_toolchain()
 	fi
 }
 
-check_flex()
-{
-	echo -n "[*] Checking flex ... "
-
-	if [ "x$(which flex 2>> config.log)" == "x" ] ; then
-		echo "[NO]"
-		MISSING_DEFS=1
-		tools_remove "trafgen"
-		tools_remove "bpfc"
-	else
-		echo "[YES]"
-	fi
-}
-
-check_bison()
-{
-	echo -n "[*] Checking bison ... "
-
-	if [ "x$(which bison 2>> config.log)" == "x" ] ; then
-		echo "[NO]"
-		MISSING_DEFS=1
-		tools_remove "trafgen"
-		tools_remove "bpfc"
-	else
-		echo "[YES]"
-	fi
-}
-
-check_nacl()
-{
-	echo -n "[*] Checking nacl ... "
-
-	cat > $TMPDIR/nacltest.c << EOF
-#include "crypto_hash_sha512.h"
-#include "crypto_verify_32.h"
-#include "crypto_hash_sha512.h"
-#include "crypto_box_curve25519xsalsa20poly1305.h"
-#include "crypto_scalarmult_curve25519.h"
-#include "crypto_auth_hmacsha512256.h"
-
-int main(void) { }
-EOF
-
-	if [ -z $NACL_INC_DIR ] ; then
-		NACL_INC_DIR="$SYSROOT/usr/include/nacl"
-	fi
-
-	if [ -z $NACL_LIB_DIR ] ; then
-		NACL_LIB_DIR="$SYSROOT/usr/lib"
-	fi
-
-	if [ -z $NACL_LIB ] ; then
-		NACL_LIB="nacl"
-	fi
-
-	LDFLAGS="-L $NACL_LIB_DIR"
-	CFLAGS="-I $NACL_INC_DIR"
-
-	$CC $CFLAGS $LDFLAGS -o $TMPDIR/nacltest $TMPDIR/nacltest.c >> config.log 2>&1
-	if [ ! -x $TMPDIR/nacltest ] ; then
-		echo "[NO]"
-		MISSING_NACL=1
-		tools_remove "curvetun"
-	else
-		echo "[YES]"
-		echo "CONFIG_NACL_INC_DIR:=$NACL_INC_DIR" >> Config
-		echo "CONFIG_NACL_LIB_DIR:=$NACL_LIB_DIR" >> Config
-		echo "CONFIG_NACL_LIB:=$NACL_LIB" >> Config
-	fi
-}
 
 check_libnl()
 {
@@ -385,160 +317,6 @@ EOF
 }
 
 
-check_ncurses()
-{
-	echo -n "[*] Checking ncurses ... "
-
-	cat > $TMPDIR/ncursestest.c << EOF
-#include <curses.h>
-
-int main(void)
-{
-	WINDOW *screen = initscr();
-}
-EOF
-
-	$CC \
-		$($PKG_CONFIG --cflags ncurses 2>> config.log) \
-		-o $TMPDIR/ncursestest $TMPDIR/ncursestest.c \
-		$($PKG_CONFIG --libs ncurses 2>> config.log \
-	          || echo '-lncurses' ) \
-			>> config.log 2>&1
-	if [ ! -x $TMPDIR/ncursestest ] ; then
-		echo "[NO]"
-		MISSING_DEFS=1
-		tools_remove "flowtop"
-		tools_remove "ifpps"
-	else
-		echo "[YES]"
-	fi
-}
-
-check_libgeoip()
-{
-	echo -n "[*] Checking libGeoIP ... "
-
-	if [ "$DISABLE_GEOIP" == "1" ] ; then
-		echo "[DISABLED]"
-		return
-	fi
-
-	cat > $TMPDIR/geoiptest.c << EOF
-#include <GeoIP.h>
-#include <GeoIPCity.h>
-
-int main(void)
-{
-	int dbs[] = {
-		GEOIP_CITY_EDITION_REV1,
-		GEOIP_CITY_EDITION_REV1_V6,
-		GEOIP_COUNTRY_EDITION,
-		GEOIP_COUNTRY_EDITION_V6,
-		GEOIP_ASNUM_EDITION,
-		GEOIP_ASNUM_EDITION_V6,
-	};
-	GeoIP *geoip = GeoIP_new(0);
-}
-EOF
-
-	$CC -o $TMPDIR/geoiptest $TMPDIR/geoiptest.c -lGeoIP >> config.log 2>&1
-	if [ ! -x $TMPDIR/geoiptest ] ; then
-		echo "[NO]"
-		MISSING_DEFS=1
-	else
-		echo "[YES]"
-		HAVE_LIBGEOIP=1
-	fi
-}
-
-check_libnf_ct()
-{
-	echo -n "[*] Checking libnetfilter-conntrack ... "
-
-	cat > $TMPDIR/nfcttest.c << EOF
-#include <libnetfilter_conntrack/libnetfilter_conntrack.h>
-#include <libnetfilter_conntrack/libnetfilter_conntrack_tcp.h>
-#include <libnetfilter_conntrack/libnetfilter_conntrack_dccp.h>
-#include <libnetfilter_conntrack/libnetfilter_conntrack_sctp.h>
-
-int main(void)
-{
-	struct nf_conntrack *ct;
-	const uint32_t id = nfct_get_attr_u32(ct, ATTR_ID);
-}
-EOF
-
-	$CC \
-		$($PKG_CONFIG --cflags libnetfilter_conntrack 2>> config.log) \
-		-o $TMPDIR/nfcttest \
-		$TMPDIR/nfcttest.c \
-		$($PKG_CONFIG --libs libnetfilter_conntrack 2>> config.log) \
-			>> config.log 2>&1
-	if [ ! -x $TMPDIR/nfcttest ] ; then
-		echo "[NO]"
-		MISSING_DEFS=1
-		tools_remove "flowtop"
-	else
-		echo "[YES]"
-	fi
-}
-
-check_zlib()
-{
-	echo -n "[*] Checking libz ... "
-
-	if [ "$DISABLE_ZLIB" == "1" ] ; then
-		echo "[DISABLED]"
-		return
-	fi
-
-	cat > $TMPDIR/ztest.c << EOF
-#include "zlib.h"
-
-int main(void)
-{
-	gzFile fp = gzopen("foo.gz", "rb");
-}
-EOF
-
-	$CC -o $TMPDIR/ztest $TMPDIR/ztest.c -lz >> config.log 2>&1
-	if [ ! -x $TMPDIR/ztest ] ; then
-		echo "[NO]"
-		echo "CONFIG_LIBZ=0" >> Config
-		MISSING_DEFS=1
-		tools_remove "astraceroute"
-		tools_remove "flowtop"
-	else
-		echo "[YES]"
-		echo "CONFIG_LIBZ=1" >> Config
-		HAVE_LIBZ=1
-	fi
-}
-
-check_urcu()
-{
-	echo -n "[*] Checking liburcu ... "
-
-	cat > $TMPDIR/urcutest.c << EOF
-#include <urcu.h>
-
-int main(void)
-{
-	rcu_init();
-	synchronize_rcu();
-}
-EOF
-
-	$CC -o $TMPDIR/urcutest $TMPDIR/urcutest.c -lurcu >> config.log 2>&1
-	if [ ! -x $TMPDIR/urcutest ] ; then
-		echo "[NO]"
-		MISSING_DEFS=1
-		tools_remove "flowtop"
-	else
-		echo "[YES]"
-	fi
-}
-
 check_libpcap()
 {
 	echo -n "[*] Checking libpcap ... "
@@ -614,53 +392,7 @@ EOF
 	fi
 }
 
-check_libcli()
-{
-	echo -n "[*] Checking libcli ... "
 
-	cat > $TMPDIR/clitest.c << EOF
-#include <sys/time.h>
-#include <libcli.h>
-
-int main(void)
-{
-	struct cli_def *cli = cli_init();
-}
-EOF
-
-	$CC -o $TMPDIR/clitest $TMPDIR/clitest.c -lcli >> config.log 2>&1
-	if [ ! -x $TMPDIR/clitest ] ; then
-		echo "[NO]"
-		MISSING_DEFS=1
-		tools_remove "mausezahn"
-	else
-		echo "[YES]"
-	fi
-}
-
-check_libnet()
-{
-	echo -n "[*] Checking libnet ... "
-
-	cat > $TMPDIR/nettest.c << EOF
-#include <libnet.h>
-
-int main(void)
-{
-	char err_buf[LIBNET_ERRBUF_SIZE];
-	libnet_t *l = libnet_init(LIBNET_LINK_ADV, "ethX", err_buf);
-}
-EOF
-
-	$CC -o $TMPDIR/nettest $TMPDIR/nettest.c -lnet >> config.log 2>&1
-	if [ ! -x $TMPDIR/nettest ] ; then
-		echo "[NO]"
-		MISSING_DEFS=1
-		tools_remove "mausezahn"
-	else
-		echo "[YES]"
-	fi
-}
 
 gen_version_appendix()
 {
@@ -762,22 +494,12 @@ if [ "$MISSING_TOOLCHAIN" == "1" ] ; then
 	exit 1
 fi
 
-check_flex
-check_bison
-check_nacl
 check_libnl
 check_libnl_route
 check_tpacket_v2
 check_tpacket_v3
-check_libnf_ct
-check_ncurses
-check_libgeoip
-check_zlib
-check_urcu
 check_libpcap
 check_hwtstamp
-check_libcli
-check_libnet
 
 gen_config_hdr
 gen_version_appendix
