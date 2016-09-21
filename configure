@@ -49,8 +49,6 @@ usage()
 	echo ""
 	echo "Optional Features:"
 	echo "  --disable-libnl  Disable libnl support"
-	echo "  --disable-geoip  Disable geoip support"
-	echo "  --disable-zlib   Disable zlib support"
 	echo "  --enable-debug   Enable debug mode (default disabled)"
 	echo ""
 	echo "Some influential environment variables:"
@@ -74,12 +72,6 @@ while [ $# -gt 0 ] ; do
 		;;
 	--disable-libnl)
 		DISABLE_LIBNL=1
-		;;
-	--disable-geoip)
-		DISABLE_GEOIP=1
-		;;
-	--disable-zlib)
-		DISABLE_ZLIB=1
 		;;
 	--enable-debug)
 		ENABLE_DEBUG=1
